@@ -6,6 +6,8 @@ This app created as a demonstration for handling 128 bit proprietary UUID servic
 
 The current version is 2.0. 
 
+This source code can be compiled with Android Studio and Gradle. 
+
 ### Note
 - Android 4.3 or later is required.
 - Android Studio supported 
