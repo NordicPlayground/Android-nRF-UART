@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/message_text"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:singleLine="false"
+    android:text="sss"
+    android:textSize="15dp" />
+<!-- From: file:/C:/Nordic%20Semiconductor/Android/Android_Studio_Tutor/nRFUART_GoogleAPI_Android4.3+/app/src/main/res/layout/message_detail.xml -->

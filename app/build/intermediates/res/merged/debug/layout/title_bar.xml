@@ -1,0 +1,11 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical" >
+    <TextView
+            android:id="@+id/title_devices"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:text="@string/app_name">
+    </TextView>
+</LinearLayout><!-- From: file:/C:/Nordic%20Semiconductor/Android/Android_Studio_Tutor/nRFUART_GoogleAPI_Android4.3+/app/src/main/res/layout/title_bar.xml -->
