@@ -69,5 +69,7 @@
     <string name="ble_not_supported">Bluetooth Low Energy not supported</string>
     <string name="scan">Scan</string>
     <string name="cancel">Cancel</string>
-    
+    <string name="action_toggle_log">Log to file</string>
+    <string name="action_clear_log">Clear log</string>
+    <string name="action_mail_log">Mail log</string>
 </resources>

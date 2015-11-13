@@ -37,8 +37,12 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.support.v4.content.LocalBroadcastManager;
+import android.text.format.Time;
 import android.util.Log;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,6 +71,10 @@ public class UartService extends Service {
             "com.nordicsemi.nrfUART.ACTION_GATT_SERVICES_DISCOVERED";
     public final static String ACTION_DATA_AVAILABLE =
             "com.nordicsemi.nrfUART.ACTION_DATA_AVAILABLE";
+    public final static String ACTION_LOGGING_ENABLED =
+            "com.nordicsemi.nrfUART.ACTION_LOGGING_ENABLED";
+    public final static String ACTION_LOGGING_DISABLED =
+            "com.nordicsemi.nrfUART.ACTION_LOGGING_DISABLED";
     public final static String EXTRA_DATA =
             "com.nordicsemi.nrfUART.EXTRA_DATA";
     public final static String DEVICE_DOES_NOT_SUPPORT_UART =
@@ -140,17 +148,32 @@ public class UartService extends Service {
 
     private void broadcastUpdate(final String action,
                                  final BluetoothGattCharacteristic characteristic) {
-        final Intent intent = new Intent(action);
 
-        // This is handling for the notification on TX Character of NUS service
-        if (TX_CHAR_UUID.equals(characteristic.getUuid())) {
-        	
-           // Log.d(TAG, String.format("Received TX: %d",characteristic.getValue() ));
-            intent.putExtra(EXTRA_DATA, characteristic.getValue());
+        if(logFile != null) {
+            // Log.d(TAG, String.format("Received TX: %d",characteristic.getValue() ));
+            if (TX_CHAR_UUID.equals(characteristic.getUuid())) {
+                byte[] value = characteristic.getValue();
+                if (logFile != null) {
+                    try {
+                        logFile.write(value);
+                        logFile.write(10);// Line-feed
+                    } catch (IOException ex) {
+                    }
+                    return;
+                }
+            }
+
         } else {
-        	
+            final Intent intent = new Intent(action);
+
+            // This is special handling for the Heart Rate Measurement profile.  Data parsing is
+            // carried out as per profile specifications:
+            // http://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.heart_rate_measurement.xml
+            if (TX_CHAR_UUID.equals(characteristic.getUuid())) {
+                intent.putExtra(EXTRA_DATA, characteristic.getValue());
+            }
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
         }
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     public class LocalBinder extends Binder {
@@ -249,6 +272,7 @@ public class UartService extends Service {
      * callback.
      */
     public void disconnect() {
+        closeLogFile();
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
             return;
@@ -262,6 +286,7 @@ public class UartService extends Service {
      * released properly.
      */
     public void close() {
+        closeLogFile();
         if (mBluetoothGatt == null) {
             return;
         }
@@ -362,5 +387,36 @@ public class UartService extends Service {
         if (mBluetoothGatt == null) return null;
 
         return mBluetoothGatt.getServices();
+    }
+
+    FileOutputStream logFile;
+
+    public void openLogFile(String path) throws IOException {
+        logFile = new FileOutputStream(path, true);
+        Time now = new Time();
+        now.setToNow();
+        String endMessage = "=== Start logging " + now.toString() + "===\n";
+        logFile.write(endMessage.getBytes("UTF-8"));
+        broadcastUpdate(ACTION_LOGGING_ENABLED);
+    }
+
+    public void closeLogFile() {
+        if(logFile != null) {
+            try {
+                Time now = new Time();
+                now.setToNow();
+                String endMessage = "=== Finished logging " + now.toString() + "===\n";
+                logFile.write(endMessage.getBytes("UTF-8"));
+                logFile.close();
+            }
+            catch(IOException e) {
+            }
+            logFile = null;
+            broadcastUpdate(ACTION_LOGGING_DISABLED);
+        }
+    }
+
+    public boolean isLogging() {
+        return logFile != null;
     }
 }

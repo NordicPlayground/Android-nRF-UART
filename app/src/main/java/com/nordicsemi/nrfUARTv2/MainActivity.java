@@ -26,10 +26,12 @@ package com.nordicsemi.nrfUARTv2;
 
 
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.text.DateFormat;
 import java.util.Date;
-
+import java.io.File;
 
 import com.nordicsemi.nrfUARTv2.UartService;
 
@@ -51,12 +53,15 @@ import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -75,6 +80,9 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     private static final int UART_PROFILE_CONNECTED = 20;
     private static final int UART_PROFILE_DISCONNECTED = 21;
     private static final int STATE_OFF = 10;
+
+    enum LoggingState {Disconnected, NotLogging, Logging};
+    static final String LogFileName = "nRF51.log";
 
     TextView mRemoteRssiVal;
     RadioGroup mRg;
@@ -208,6 +216,7 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
                              listAdapter.add("["+currentDateTimeString+"] Connected to: "+ mDevice.getName());
                         	 	messageListView.smoothScrollToPosition(listAdapter.getCount() - 1);
                              mState = UART_PROFILE_CONNECTED;
+                        setLoggingState(LoggingState.NotLogging);
                      }
             	 });
             }
@@ -226,7 +235,7 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
                              mState = UART_PROFILE_DISCONNECTED;
                              mService.close();
                             //setUiState();
-                         
+                        setLoggingState(LoggingState.Disconnected);
                      }
                  });
             }
@@ -260,7 +269,21 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
             	mService.disconnect();
             }
             
-            
+            if(action.equals(UartService.ACTION_LOGGING_ENABLED)) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        setLoggingState(LoggingState.Logging);
+                    }
+                });
+            } else if(action.equals(UartService.ACTION_LOGGING_DISABLED)) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        setLoggingState(LoggingState.NotLogging);
+                    }
+                });
+            }
         }
     };
 
@@ -276,6 +299,8 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
         intentFilter.addAction(UartService.ACTION_GATT_DISCONNECTED);
         intentFilter.addAction(UartService.ACTION_GATT_SERVICES_DISCOVERED);
         intentFilter.addAction(UartService.ACTION_DATA_AVAILABLE);
+        intentFilter.addAction(UartService.ACTION_LOGGING_ENABLED);
+        intentFilter.addAction(UartService.ACTION_LOGGING_DISABLED);
         intentFilter.addAction(UartService.DEVICE_DOES_NOT_SUPPORT_UART);
         return intentFilter;
     }
@@ -336,6 +361,71 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
     }
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        optionsMenu = menu;
+        setLoggingState(LoggingState.Disconnected);
+        return true;
+    }
+
+    Menu optionsMenu;
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        switch(id) {
+            case R.id.action_clear_log:
+                new File(Environment.getExternalStorageDirectory(), LogFileName).delete();
+                setLoggingState(mLoggingState);
+                return true;
+
+            case R.id.action_toggle_log:
+                if(mService != null) {
+                    if (mService.isLogging()) {
+                        mService.closeLogFile();
+                    } else {
+                        try {
+                            mService.openLogFile(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + LogFileName);
+                        } catch(Exception ex) {
+                            Toast.makeText(MainActivity.this, ex.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+                return true;
+
+            case R.id.action_mail_log:
+                File fileToShare = new File(Environment.getExternalStorageDirectory().getAbsolutePath(), LogFileName);
+                if(fileToShare.exists()) {
+                    try {
+                        //Uri uri = FileProvider.getUriForFile(MainActivity.this, "com.example.myapp.fileprovider", fileToShare);
+                        Uri uri = Uri.fromFile(fileToShare);
+                        Intent intent = new Intent(Intent.ACTION_SENDTO);
+                        intent.putExtra(Intent.EXTRA_SUBJECT, "nRF UART log file");
+                        intent.putExtra(Intent.EXTRA_STREAM, uri);
+                        intent.setType("text/plain");
+                        intent.putExtra(Intent.EXTRA_TEXT, "Log file attached");
+                        intent.setData(Uri.parse("mailto:"));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                        startActivity(intent);
+                        //activity.finish();
+                    } catch (Exception e) {
+                        System.out.println("is exception raises during sending mail" + e);
+                    }
+                    return true;
+                }
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
 
@@ -375,6 +465,42 @@ public class MainActivity extends Activity implements RadioGroup.OnCheckedChange
        
     }
 
+    private boolean getLogFileExists() {
+        return new File(Environment.getExternalStorageDirectory().getAbsolutePath(), LogFileName).exists();
+    }
+    LoggingState mLoggingState = LoggingState.Disconnected;
+
+    private void setLoggingState(LoggingState state) {
+        MenuItem clearLogItem = optionsMenu.findItem(R.id.action_clear_log);
+        MenuItem toggleLogItem = optionsMenu.findItem(R.id.action_toggle_log);
+        MenuItem mailLogItem = optionsMenu.findItem(R.id.action_mail_log);
+
+        boolean logFileExists = getLogFileExists();
+        switch (state) {
+            default:
+            case Disconnected:
+                clearLogItem.setEnabled(logFileExists);
+                toggleLogItem.setEnabled(false);
+                toggleLogItem.setChecked(false);
+                mailLogItem.setEnabled(logFileExists);
+                break;
+
+            case Logging:
+                clearLogItem.setEnabled(false);
+                toggleLogItem.setEnabled(true);
+                toggleLogItem.setChecked(true);
+                mailLogItem .setEnabled(false);
+                break;
+
+            case NotLogging:
+                clearLogItem.setEnabled(logFileExists);
+                toggleLogItem.setEnabled(true);
+                toggleLogItem.setChecked(false);
+                mailLogItem .setEnabled(logFileExists);
+                break;
+        }
+        mLoggingState = state;
+    }
     
     private void showMessage(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();

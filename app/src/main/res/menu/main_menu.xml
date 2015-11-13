@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_toggle_log" android:title="@string/action_toggle_log" android:checkable="true"
+        android:orderInCategory="100" />
+    <item android:id="@+id/action_mail_log" android:title="@string/action_mail_log"
+        android:orderInCategory="100" />
+    <item android:id="@+id/action_clear_log" android:title="@string/action_clear_log"
+        android:orderInCategory="100" />
+</menu>
