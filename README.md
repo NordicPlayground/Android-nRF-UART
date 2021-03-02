@@ -14,4 +14,5 @@ This source code can be compiled with Android Studio and Gradle.
 
 ### Note
 - Android 4.3 or later is required.
-- Android Studio supported 
+- Android Studio supported
+- AndroidX supported
